@@ -1,0 +1,20 @@
+serviceProperties :
+    serviceDataProperties:
+        serviceName : "cache"
+        ip : "localhost"
+        port : 8084
+        rootUrl : "/cache"
+    zNodeInfoProperties:
+        regZnodePath : "/regManageNode"
+        regZnodeChildPath : "/regManageNode/regManageChildNode"
+        depZnodePath : "/depManageNode"
+        zookeeperHostport : "192.168.56.17:2181"
+    kafkaProducerProperties:
+        brokerList : "192.168.56.17:9092"
+        listenTopic : "wyb"
+        groupId : "test"
+        deserializerClass : "org.apache.kafka.common.serialization.StringDeserializer"
+
+tomcatPort : 8084
+
+endpoints.shutdown.enabled : true
