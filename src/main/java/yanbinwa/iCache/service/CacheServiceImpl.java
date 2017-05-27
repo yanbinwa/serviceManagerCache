@@ -1,5 +1,6 @@
 package yanbinwa.iCache.service;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
@@ -16,7 +17,8 @@ import yanbinwa.common.orchestrationClient.OrchestartionCallBack;
 import yanbinwa.common.orchestrationClient.OrchestrationClient;
 import yanbinwa.common.orchestrationClient.OrchestrationClientImpl;
 import yanbinwa.common.orchestrationClient.OrchestrationServiceState;
-import yanbinwa.common.zNodedata.ZNodeServiceData;
+import yanbinwa.common.zNodedata.ZNodeData;
+import yanbinwa.common.zNodedata.ZNodeServiceDataWithKafkaTopic;
 import yanbinwa.iCache.exception.ServiceUnavailableException;
 
 @Service("cacheService")
@@ -30,7 +32,7 @@ public class CacheServiceImpl implements CacheService
     
     Map<String, String> serviceDataProperties;
     Map<String, String> zNodeInfoProperties;
-    Map<String, String> kafkaProducerProperties;
+    Map<String, Object> kafkaConsumerProperties;
 
     public void setServiceDataProperties(Map<String, String> properties)
     {
@@ -52,21 +54,21 @@ public class CacheServiceImpl implements CacheService
         return this.zNodeInfoProperties;
     }
     
-    public void setKafkaProducerProperties(Map<String, String> properties)
+    public void setKafkaConsumerProperties(Map<String, Object> properties)
     {
-        this.kafkaProducerProperties = properties;
+        this.kafkaConsumerProperties = properties;
     }
     
-    public Map<String, String> getKafkaProducerProperties()
+    public Map<String, Object> getKafkaConsumerProperties()
     {
-        return this.kafkaProducerProperties;
+        return this.kafkaConsumerProperties;
     }
     
-    ZNodeServiceData serviceData = null;
+    ZNodeData serviceData = null;
     
     OrchestrationClient client = null;
     
-    IKafkaConsumer kafkaConsumer = null;
+    Map<String, IKafkaConsumer> kafkaConsumerMap = new HashMap<String, IKafkaConsumer>();
     
     boolean isRunning = false;
     
@@ -83,19 +85,46 @@ public class CacheServiceImpl implements CacheService
             logger.error("Zookeeper host and port should not be null");
             return;
         }
-        
+        String serviceGroupName = serviceDataProperties.get(CacheService.SERVICE_SERVICEGROUPNAME);
         String serviceName = serviceDataProperties.get(CacheService.SERVICE_SERVICENAME);
         String ip = serviceDataProperties.get(CacheService.SERVICE_IP);
         String portStr = serviceDataProperties.get(CacheService.SERVICE_PORT);
         int port = Integer.parseInt(portStr);
         String rootUrl = serviceDataProperties.get(CacheService.SERVICE_ROOTURL);
-        serviceData = new ZNodeServiceData(ip, serviceName, port, rootUrl);
+        String topicInfo = serviceDataProperties.get(CacheService.SERVICE_TOPICINFO);
+        serviceData = new ZNodeServiceDataWithKafkaTopic(ip, serviceGroupName, serviceName, port, rootUrl, topicInfo);
         
         client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
-        kafkaConsumer = new IKafkaConsumerImpl(kafkaProducerProperties, "kafkaProducer", callback);
+        createKafkaConsumerMap(kafkaConsumerProperties);
+        
         start();
     }
 
+    private void createKafkaConsumerMap(Map<String, Object> kafkaConsumerProperties)
+    {
+        if (kafkaConsumerProperties == null)
+        {
+            logger.error("kafka properties shoud not be null");
+            return;
+        }
+        for(Map.Entry<String, Object> entry : kafkaConsumerProperties.entrySet())
+        {
+            if(entry.getValue() instanceof Map)
+            {
+                @SuppressWarnings("unchecked")
+                Map<String, String> kafkaProperty = (Map<String, String>)entry.getValue();
+                String consumerTopic = entry.getKey();
+                IKafkaConsumer kafkaConsumer = new IKafkaConsumerImpl(kafkaProperty, consumerTopic, callback);
+                kafkaConsumerMap.put(consumerTopic, kafkaConsumer);
+            }
+            else
+            {
+                logger.error("kafka property shoud not be null " + entry.getKey());
+                continue;
+            }
+        }
+    }
+    
     @Override
     public void start()
     {
@@ -198,13 +227,19 @@ public class CacheServiceImpl implements CacheService
             if (state == OrchestrationServiceState.READY && curState == OrchestrationServiceState.NOTREADY)
             {
                 logger.info("The service is started");
-                kafkaConsumer.start();
+                for(Map.Entry<String, IKafkaConsumer> entry : kafkaConsumerMap.entrySet())
+                {
+                    entry.getValue().start();
+                }
                 curState = state;
             }
             else if(state == OrchestrationServiceState.NOTREADY && curState == OrchestrationServiceState.READY)
             {
                 logger.info("The service is stopped");
-                kafkaConsumer.stop();
+                for(Map.Entry<String, IKafkaConsumer> entry : kafkaConsumerMap.entrySet())
+                {
+                    entry.getValue().stop();
+                }
                 curState = state;
             }
             else if(state == OrchestrationServiceState.DEPCHANGE)
@@ -212,7 +247,5 @@ public class CacheServiceImpl implements CacheService
                 logger.info("The dependence is changed");
             }
         }
-    
     }
-    
 }

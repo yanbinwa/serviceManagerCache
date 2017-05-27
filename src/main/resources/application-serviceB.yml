@@ -1,23 +1,21 @@
 serviceProperties :
     serviceDataProperties:
         serviceGroupName : "cache"
-        serviceName : "cache_1"
-        ip : "localhost"
-        port : 8084
+        serviceName : "cache_B"
+        ip : "172.18.0.52"
+        port : 8112
         rootUrl : "/cache"
-        consumerTopicInfo : "{\"cacheTopic\":[\"cacheTopic_1\"]}"
+        consumerTopicInfo : "{\"cacheTopic\":[\"cacheTopic_2\"]}"
     zNodeInfoProperties:
         regZnodePath : "/regManageNode"
         regZnodeChildPath : "/regManageNode/regManageChildNode"
         depZnodePath : "/depManageNode"
-        zookeeperHostport : "192.168.56.17:2181"
+        zookeeperHostport : "172.18.0.11:2191,172.18.0.12:2192,172.18.0.13:2193"
     kafkaConsumerProperties:
-        cacheTopic_1:
-            brokerList : "192.168.56.17:9092"
-            consumerTopic : "cacheTopic_1"
+        cacheTopic_2:
+            brokerList : "172.18.0.41:9101,172.18.0.42:9102,172.18.0.43:9103"
+            consumerTopic : "cacheTopic_2"
             groupId : "cacheTopic"
             deserializerClass : "org.apache.kafka.common.serialization.StringDeserializer"
 
-tomcatPort : 8084
-
-endpoints.shutdown.enabled : true
+tomcatPort : 8112

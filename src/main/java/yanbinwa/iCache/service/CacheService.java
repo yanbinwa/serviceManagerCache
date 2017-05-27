@@ -10,8 +10,10 @@ public interface CacheService  extends InitializingBean, ServiceLifeCycle
     
     public static final String SERVICE_IP = "ip";
     public static final String SERVICE_SERVICENAME = "serviceName";
+    public static final String SERVICE_SERVICEGROUPNAME = "serviceGroupName";
     public static final String SERVICE_PORT = "port";
     public static final String SERVICE_ROOTURL = "rootUrl";
+    public static final String SERVICE_TOPICINFO = "consumerTopicInfo";
     
     String getServiceName() throws ServiceUnavailableException;
     
