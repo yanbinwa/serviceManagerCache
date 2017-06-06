@@ -17,8 +17,8 @@ import yanbinwa.common.orchestrationClient.OrchestartionCallBack;
 import yanbinwa.common.orchestrationClient.OrchestrationClient;
 import yanbinwa.common.orchestrationClient.OrchestrationClientImpl;
 import yanbinwa.common.orchestrationClient.OrchestrationServiceState;
-import yanbinwa.common.zNodedata.ZNodeData;
-import yanbinwa.common.zNodedata.ZNodeServiceDataWithKafkaTopic;
+import yanbinwa.common.zNodedata.ZNodeServiceData;
+import yanbinwa.common.zNodedata.ZNodeServiceDataWithKafkaTopicImpl;
 import yanbinwa.iCache.exception.ServiceUnavailableException;
 
 @Service("cacheService")
@@ -64,7 +64,7 @@ public class CacheServiceImpl implements CacheService
         return this.kafkaConsumerProperties;
     }
     
-    ZNodeData serviceData = null;
+    ZNodeServiceData serviceData = null;
     
     OrchestrationClient client = null;
     
@@ -92,7 +92,7 @@ public class CacheServiceImpl implements CacheService
         int port = Integer.parseInt(portStr);
         String rootUrl = serviceDataProperties.get(CacheService.SERVICE_ROOTURL);
         String topicInfo = serviceDataProperties.get(CacheService.SERVICE_TOPICINFO);
-        serviceData = new ZNodeServiceDataWithKafkaTopic(ip, serviceGroupName, serviceName, port, rootUrl, topicInfo);
+        serviceData = new ZNodeServiceDataWithKafkaTopicImpl(ip, serviceGroupName, serviceName, port, rootUrl, topicInfo);
         
         client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
         createKafkaConsumerMap(kafkaConsumerProperties);
