@@ -11,12 +11,13 @@ import org.springframework.stereotype.Service;
 
 import yanbinwa.common.kafka.consumer.IKafkaCallBack;
 import yanbinwa.common.kafka.consumer.IKafkaConsumer;
-import yanbinwa.common.kafka.consumer.IKafkaConsumerImpl;
 import yanbinwa.common.kafka.message.KafkaMessage;
+import yanbinwa.common.kafka.producer.IKafkaProducer;
 import yanbinwa.common.orchestrationClient.OrchestartionCallBack;
 import yanbinwa.common.orchestrationClient.OrchestrationClient;
 import yanbinwa.common.orchestrationClient.OrchestrationClientImpl;
 import yanbinwa.common.orchestrationClient.OrchestrationServiceState;
+import yanbinwa.common.utils.KafkaUtil;
 import yanbinwa.common.zNodedata.ZNodeServiceData;
 import yanbinwa.common.zNodedata.ZNodeServiceDataWithKafkaTopicImpl;
 import yanbinwa.iCache.exception.ServiceUnavailableException;
@@ -32,7 +33,7 @@ public class CacheServiceImpl implements CacheService
     
     Map<String, String> serviceDataProperties;
     Map<String, String> zNodeInfoProperties;
-    Map<String, Object> kafkaConsumerProperties;
+    Map<String, Object> kafkaProperties;
 
     public void setServiceDataProperties(Map<String, String> properties)
     {
@@ -54,19 +55,21 @@ public class CacheServiceImpl implements CacheService
         return this.zNodeInfoProperties;
     }
     
-    public void setKafkaConsumerProperties(Map<String, Object> properties)
+    public void setKafkaProperties(Map<String, Object> properties)
     {
-        this.kafkaConsumerProperties = properties;
+        this.kafkaProperties = properties;
     }
     
-    public Map<String, Object> getKafkaConsumerProperties()
+    public Map<String, Object> getKafkaProperties()
     {
-        return this.kafkaConsumerProperties;
+        return this.kafkaProperties;
     }
     
     ZNodeServiceData serviceData = null;
     
     OrchestrationClient client = null;
+    
+    Map<String, IKafkaProducer> kafkaProducerMap = new HashMap<String, IKafkaProducer>();
     
     Map<String, IKafkaConsumer> kafkaConsumerMap = new HashMap<String, IKafkaConsumer>();
     
@@ -95,34 +98,9 @@ public class CacheServiceImpl implements CacheService
         serviceData = new ZNodeServiceDataWithKafkaTopicImpl(ip, serviceGroupName, serviceName, port, rootUrl, topicInfo);
         
         client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
-        createKafkaConsumerMap(kafkaConsumerProperties);
+        createKafkaProducerAndConsumer(kafkaProperties);
         
         start();
-    }
-
-    private void createKafkaConsumerMap(Map<String, Object> kafkaConsumerProperties)
-    {
-        if (kafkaConsumerProperties == null)
-        {
-            logger.error("kafka properties shoud not be null");
-            return;
-        }
-        for(Map.Entry<String, Object> entry : kafkaConsumerProperties.entrySet())
-        {
-            if(entry.getValue() instanceof Map)
-            {
-                @SuppressWarnings("unchecked")
-                Map<String, String> kafkaProperty = (Map<String, String>)entry.getValue();
-                String consumerTopic = entry.getKey();
-                IKafkaConsumer kafkaConsumer = new IKafkaConsumerImpl(kafkaProperty, consumerTopic, callback);
-                kafkaConsumerMap.put(consumerTopic, kafkaConsumer);
-            }
-            else
-            {
-                logger.error("kafka property shoud not be null " + entry.getKey());
-                continue;
-            }
-        }
     }
     
     @Override
@@ -203,6 +181,12 @@ public class CacheServiceImpl implements CacheService
         }
     }
 
+    private void createKafkaProducerAndConsumer(Map<String, Object> kafkaProperties)
+    {
+        kafkaProducerMap = KafkaUtil.createKafkaProducerMap(kafkaProperties);
+        kafkaConsumerMap = KafkaUtil.createKafkaConsumerMap(kafkaProperties, callback);
+    }
+    
     class IKafkaCallBackImpl implements IKafkaCallBack
     {
 
