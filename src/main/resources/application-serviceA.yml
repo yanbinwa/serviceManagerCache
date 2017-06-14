@@ -21,3 +21,5 @@ serviceProperties :
 
 
 tomcatPort : 8111
+
+logging.file : "/opt/cache/log/console.log"

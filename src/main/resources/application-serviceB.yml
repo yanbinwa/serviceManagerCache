@@ -20,3 +20,5 @@ serviceProperties :
                 deserializerClass : "org.apache.kafka.common.serialization.StringDeserializer"
 
 tomcatPort : 8112
+
+logging.file : "/opt/cache/log/console.log"
