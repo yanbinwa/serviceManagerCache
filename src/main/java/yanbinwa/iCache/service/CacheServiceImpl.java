@@ -187,6 +187,38 @@ public class CacheServiceImpl implements CacheService
         kafkaConsumerMap = KafkaUtil.createKafkaConsumerMap(kafkaProperties, callback);
     }
     
+    private void startKafkaProducers()
+    {
+        for(Map.Entry<String, IKafkaProducer> entry : kafkaProducerMap.entrySet())
+        {
+            entry.getValue().start();
+        }
+    }
+    
+    private void stopKafkaProducers()
+    {
+        for(Map.Entry<String, IKafkaProducer> entry : kafkaProducerMap.entrySet())
+        {
+            entry.getValue().stop();
+        }
+    }
+    
+    private void startKafkaConsumers()
+    {
+        for(Map.Entry<String, IKafkaConsumer> entry : kafkaConsumerMap.entrySet())
+        {
+            entry.getValue().start();
+        }
+    }
+    
+    private void stopKafkaConsumers()
+    {
+        for(Map.Entry<String, IKafkaConsumer> entry : kafkaConsumerMap.entrySet())
+        {
+            entry.getValue().stop();
+        }
+    }
+    
     class IKafkaCallBackImpl implements IKafkaCallBack
     {
 
@@ -211,19 +243,15 @@ public class CacheServiceImpl implements CacheService
             if (state == OrchestrationServiceState.READY && curState == OrchestrationServiceState.NOTREADY)
             {
                 logger.info("The service is started");
-                for(Map.Entry<String, IKafkaConsumer> entry : kafkaConsumerMap.entrySet())
-                {
-                    entry.getValue().start();
-                }
+                startKafkaProducers();
+                startKafkaConsumers();
                 curState = state;
             }
             else if(state == OrchestrationServiceState.NOTREADY && curState == OrchestrationServiceState.READY)
             {
                 logger.info("The service is stopped");
-                for(Map.Entry<String, IKafkaConsumer> entry : kafkaConsumerMap.entrySet())
-                {
-                    entry.getValue().stop();
-                }
+                stopKafkaProducers();
+                stopKafkaConsumers();
                 curState = state;
             }
             else if(state == OrchestrationServiceState.DEPCHANGE)
