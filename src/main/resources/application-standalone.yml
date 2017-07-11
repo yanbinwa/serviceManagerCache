@@ -5,20 +5,12 @@ serviceProperties :
         ip : "172.18.0.51"
         port : 8111
         rootUrl : "/cache"
-        topicInfo : "{\"consumers\":{\"cacheTopic\":[\"cacheTopic_1\"]}}"
+        redisInfoNeed : "true"
     zNodeInfoProperties:
         regZnodePath : "/regManageNode"
         regZnodeChildPath : "/regManageNode/regManageChildNode"
         depZnodePath : "/depManageNode"
         zookeeperHostport : "172.18.0.11:2191"
-    kafkaProperties:
-        consumers:
-            cacheTopic_1:
-                brokerList : "172.18.0.41:9101"
-                consumerTopic : "cacheTopic_1"
-                groupId : "cacheTopic"
-                deserializerClass : "org.apache.kafka.common.serialization.StringDeserializer"
-
 
 tomcatPort : 8111
 

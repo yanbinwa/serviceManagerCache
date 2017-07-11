@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import yanbinwa.iCache.exception.ServiceUnavailableException;
+import yanbinwa.common.exceptions.ServiceUnavailableException;
 import yanbinwa.iCache.service.CacheService;
 
 @RestController
