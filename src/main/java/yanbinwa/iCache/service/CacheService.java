@@ -2,6 +2,7 @@ package yanbinwa.iCache.service;
 
 import org.springframework.beans.factory.InitializingBean;
 
+import yanbinwa.common.exceptions.RedisErrorException;
 import yanbinwa.common.exceptions.ServiceUnavailableException;
 import yanbinwa.common.iInterface.ServiceLifeCycle;
 
@@ -32,7 +33,7 @@ public interface CacheService  extends InitializingBean, ServiceLifeCycle
 
     void stopManageService();
     
-    void setString(String key, String value);
+    void setString(String key, String value) throws RedisErrorException;
     
-    String getString(String key);
+    String getString(String key) throws RedisErrorException;
 }

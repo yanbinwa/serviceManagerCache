@@ -13,6 +13,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
+import yanbinwa.common.exceptions.RedisErrorException;
 import yanbinwa.common.exceptions.ServiceUnavailableException;
 import yanbinwa.common.kafka.consumer.IKafkaConsumer;
 import yanbinwa.common.kafka.producer.IKafkaProducer;
@@ -184,25 +185,63 @@ public class CacheServiceImpl implements CacheService
     }
     
     @Override
-    public void setString(String key, String value)
+    public void setString(String key, String value) throws RedisErrorException
     {
         RedisClient redisClient = getRedisClientFromKey(key);
         if (redisClient == null)
         {
-            return;
+            throw new RedisErrorException();
         }
-        redisClient.setString(redisClient.getJedisConnection(), key, value);   //这里需要改进，直接在redisClient中进行
+        try
+        {
+            boolean ret = redisClient.getJedisConnection();
+            if (!ret)
+            {
+                logger.error("fail to get the redis connection");
+                throw new RedisErrorException();
+            }
+            redisClient.setString(key, value);
+        }
+        catch (InterruptedException e)
+        {
+            logger.error("get redis connection timeout");
+            e.printStackTrace();
+        }
+        finally
+        {
+            redisClient.returnJedisConnection();
+        }
     }
 
     @Override
-    public String getString(String key)
+    public String getString(String key) throws RedisErrorException
     {
         RedisClient redisClient = getRedisClientFromKey(key);
         if (redisClient == null)
         {
-            return null;
+            throw new RedisErrorException();
         }
-        return redisClient.getString(redisClient.getJedisConnection(), key);
+        String value = null;
+        try
+        {
+            boolean ret = redisClient.getJedisConnection();
+            if (!ret)
+            {
+                logger.error("fail to get the redis connection");
+                throw new RedisErrorException();
+            }
+            value = redisClient.getString(key);
+        }
+        catch (InterruptedException e)
+        {
+            logger.error("get redis connection timeout");
+            e.printStackTrace();
+        }
+        finally
+        {
+            redisClient.returnJedisConnection();
+        }
+        return value;
     }
     
     private RedisClient getRedisClientFromKey(String key)
@@ -378,8 +417,20 @@ public class CacheServiceImpl implements CacheService
     
     private void clearRedisPartitionInfo()
     {
-        partitionKeyToRedisClientMap.clear();
-        redisServiceDataToRedisClientMap.clear();
-        partitionMask = -1;
+        lock.lock();
+        try
+        {
+            for(RedisClient redisClient : partitionKeyToRedisClientMap.values())
+            {
+                redisClient.closePool();
+            }
+            partitionKeyToRedisClientMap.clear();
+            redisServiceDataToRedisClientMap.clear();
+            partitionMask = -1;
+        }
+        finally
+        {
+            lock.unlock();
+        }
     }
 }
