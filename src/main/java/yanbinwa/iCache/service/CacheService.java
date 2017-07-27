@@ -4,9 +4,10 @@ import org.springframework.beans.factory.InitializingBean;
 
 import yanbinwa.common.exceptions.RedisErrorException;
 import yanbinwa.common.exceptions.ServiceUnavailableException;
+import yanbinwa.common.iInterface.ConfigServiceIf;
 import yanbinwa.common.iInterface.ServiceLifeCycle;
 
-public interface CacheService  extends InitializingBean, ServiceLifeCycle 
+public interface CacheService  extends InitializingBean, ServiceLifeCycle, ConfigServiceIf 
 {
     public static final String SERVICE_IP = "ip";
     public static final String SERVICE_SERVICENAME = "serviceName";
@@ -33,7 +34,7 @@ public interface CacheService  extends InitializingBean, ServiceLifeCycle
 
     void stopManageService();
     
-    void setString(String key, String value) throws RedisErrorException;
+    void setString(String key, String value) throws RedisErrorException, ServiceUnavailableException;
     
-    String getString(String key) throws RedisErrorException;
+    String getString(String key) throws RedisErrorException, ServiceUnavailableException;
 }

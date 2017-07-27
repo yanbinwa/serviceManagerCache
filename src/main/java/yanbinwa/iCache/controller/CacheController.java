@@ -51,13 +51,13 @@ public class CacheController
     }
     
     @RequestMapping(value="/setString",method=RequestMethod.GET)
-    void setString(@RequestParam("key") String key, @RequestParam("value") String value) throws RedisErrorException
+    void setString(@RequestParam("key") String key, @RequestParam("value") String value) throws RedisErrorException, ServiceUnavailableException
     {
         cacheService.setString(key, value);
     }
     
     @RequestMapping(value="/getString",method=RequestMethod.GET)
-    String getString(@RequestParam("key") String key) throws RedisErrorException
+    String getString(@RequestParam("key") String key) throws RedisErrorException, ServiceUnavailableException
     {
         return cacheService.getString(key);
     }

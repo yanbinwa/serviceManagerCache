@@ -8,11 +8,16 @@ import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Logger;
+import org.json.JSONObject;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
+import yanbinwa.common.configClient.ConfigCallBack;
+import yanbinwa.common.configClient.ConfigClient;
+import yanbinwa.common.configClient.ConfigClientImpl;
+import yanbinwa.common.configClient.ServiceConfigState;
 import yanbinwa.common.exceptions.RedisErrorException;
 import yanbinwa.common.exceptions.ServiceUnavailableException;
 import yanbinwa.common.kafka.consumer.IKafkaConsumer;
@@ -22,6 +27,7 @@ import yanbinwa.common.orchestrationClient.OrchestrationClient;
 import yanbinwa.common.orchestrationClient.OrchestrationClientImpl;
 import yanbinwa.common.orchestrationClient.OrchestrationServiceState;
 import yanbinwa.common.redis.RedisClient;
+import yanbinwa.common.zNodedata.ZNodeDataUtil;
 import yanbinwa.common.zNodedata.ZNodeDependenceData;
 import yanbinwa.common.zNodedata.ZNodeServiceData;
 import yanbinwa.common.zNodedata.ZNodeServiceDataImpl;
@@ -70,7 +76,15 @@ public class CacheServiceImpl implements CacheService
     
     boolean isRunning = false;
     
+    boolean isConfiged = false;
+    
     OrchestrationWatcher watcher = new OrchestrationWatcher();
+    
+    private ConfigClient configClient = null;
+    
+    ConfigCallBack configCallBack = new CacheConfigCallBack();
+    
+    private String zookeeperHostIp = null;
     
     // 记录了Redis与Partition的Mapping关系，其中hash值一律是通过key自带的hash来进行的
     Map<ZNodeServiceData, RedisClient> redisServiceDataToRedisClientMap = new HashMap<ZNodeServiceData, RedisClient>();
@@ -81,7 +95,7 @@ public class CacheServiceImpl implements CacheService
     @Override
     public void afterPropertiesSet() throws Exception
     {
-        String zookeeperHostIp = zNodeInfoProperties.get(OrchestrationClient.ZOOKEEPER_HOSTPORT_KEY);
+        zookeeperHostIp = zNodeInfoProperties.get(OrchestrationClient.ZOOKEEPER_HOSTPORT_KEY);
         if(zookeeperHostIp == null)
         {
             logger.error("Zookeeper host and port should not be null");
@@ -101,6 +115,7 @@ public class CacheServiceImpl implements CacheService
             serviceData.addServiceDataDecorate(ZNodeDecorateType.REDIS, true);
         }
         
+        configClient = new ConfigClientImpl(serviceData, configCallBack, zookeeperHostIp, zNodeInfoProperties);
         client = new OrchestrationClientImpl(serviceData, watcher, zookeeperHostIp, zNodeInfoProperties);
         
         start();
@@ -111,9 +126,9 @@ public class CacheServiceImpl implements CacheService
     {
         if(!isRunning)
         {
-            logger.info("Start cache service ...");
-            client.start();
             isRunning = true;
+            configClient.start();
+            logger.info("Start cache service ...");
         }
         else
         {
@@ -126,9 +141,9 @@ public class CacheServiceImpl implements CacheService
     {
         if(isRunning)
         {
-            logger.info("Stop cache service ...");
-            client.stop();
             isRunning = false;
+            configClient.stop();
+            logger.info("Stop cache service ...");            
         }
         else
         {
@@ -139,7 +154,7 @@ public class CacheServiceImpl implements CacheService
     @Override
     public String getServiceName() throws ServiceUnavailableException
     {
-        if(!isRunning)
+        if(!isServiceReadyToWork())
         {
             throw new ServiceUnavailableException();
         }
@@ -149,7 +164,7 @@ public class CacheServiceImpl implements CacheService
     @Override
     public boolean isServiceReady() throws ServiceUnavailableException
     {
-        if(!isRunning)
+        if(!isServiceReadyToWork())
         {
             throw new ServiceUnavailableException();
         }
@@ -159,7 +174,7 @@ public class CacheServiceImpl implements CacheService
     @Override
     public String getServiceDependence() throws ServiceUnavailableException
     {
-        if(!isRunning)
+        if(!isServiceReadyToWork())
         {
             throw new ServiceUnavailableException();
         }
@@ -185,8 +200,12 @@ public class CacheServiceImpl implements CacheService
     }
     
     @Override
-    public void setString(String key, String value) throws RedisErrorException
+    public void setString(String key, String value) throws RedisErrorException, ServiceUnavailableException
     {
+        if(!isServiceReadyToWork())
+        {
+            throw new ServiceUnavailableException();
+        }
         RedisClient redisClient = getRedisClientFromKey(key);
         if (redisClient == null)
         {
@@ -214,8 +233,12 @@ public class CacheServiceImpl implements CacheService
     }
 
     @Override
-    public String getString(String key) throws RedisErrorException
+    public String getString(String key) throws RedisErrorException, ServiceUnavailableException
     {
+        if(!isServiceReadyToWork())
+        {
+            throw new ServiceUnavailableException();
+        }
         RedisClient redisClient = getRedisClientFromKey(key);
         if (redisClient == null)
         {
@@ -244,6 +267,34 @@ public class CacheServiceImpl implements CacheService
         return value;
     }
     
+    @Override
+    public void startWork()
+    {
+        logger.info("Start work cache service ...");
+        init();
+        client.start();
+        isRunning = true;
+    }
+
+    @Override
+    public void stopWork()
+    {
+        logger.info("Stop work cache service ...");
+        client.stop();
+        reset();
+        isRunning = false;
+    }
+    
+    private void init()
+    {
+        
+    }
+    
+    private void reset()
+    {
+        
+    }
+    
     private RedisClient getRedisClientFromKey(String key)
     {
         if (key == null)
@@ -252,42 +303,6 @@ public class CacheServiceImpl implements CacheService
         }
         int partitionKey =  key.hashCode() % partitionMask;
         return partitionKeyToRedisClientMap.get(partitionKey);
-    }
-    
-    /**
-     * 通过dependenceData来构建redisClientMap
-     * 
-     * @author yanbinwa
-     *
-     */
-    class OrchestrationWatcher implements OrchestartionCallBack
-    {
-
-        OrchestrationServiceState curState = OrchestrationServiceState.NOTREADY;
-        
-        @Override
-        public void handleServiceStateChange(OrchestrationServiceState state)
-        {
-            logger.info("Service state is: " + state);
-            //由Unready -> ready
-            if (state == OrchestrationServiceState.READY && curState == OrchestrationServiceState.NOTREADY)
-            {
-                logger.info("The service is started");
-                curState = state;
-                buildOrUpdateRedisPartitionInfo();
-            }
-            else if(state == OrchestrationServiceState.NOTREADY && curState == OrchestrationServiceState.READY)
-            {
-                logger.info("The service is stopped");
-                curState = state;
-                clearRedisPartitionInfo();
-            }
-            else if(state == OrchestrationServiceState.DEPCHANGE)
-            {
-                logger.info("The dependence is changed");
-                buildOrUpdateRedisPartitionInfo();
-            }
-        }
     }
     
     // 这里还要对RedisClient进行创建和删除操作
@@ -420,7 +435,8 @@ public class CacheServiceImpl implements CacheService
         lock.lock();
         try
         {
-            for(RedisClient redisClient : partitionKeyToRedisClientMap.values())
+            //不能通过partitionKeyToRedisClientMap来去做，应该用redisServiceDataToRedisClientMap
+            for(RedisClient redisClient : redisServiceDataToRedisClientMap.values())
             {
                 redisClient.closePool();
             }
@@ -431,6 +447,91 @@ public class CacheServiceImpl implements CacheService
         finally
         {
             lock.unlock();
+        }
+    }
+    
+    private void updateServiceConfigProperties(JSONObject serviceConfigPropertiesObj)
+    {
+        if (!isConfiged)
+        {
+            logger.info("Update the serviceProperties for Cache");
+            startWork();
+        }
+        isConfiged = true;
+    }
+    
+    private boolean isServiceReadyToWork()
+    {
+        return isRunning && isConfiged;
+    }
+    
+    /**
+     * 通过dependenceData来构建redisClientMap
+     * 
+     * @author yanbinwa
+     *
+     */
+    class OrchestrationWatcher implements OrchestartionCallBack
+    {
+
+        OrchestrationServiceState curState = OrchestrationServiceState.NOTREADY;
+        
+        @Override
+        public void handleServiceStateChange(OrchestrationServiceState state)
+        {
+            logger.info("Service state is: " + state);
+            //由Unready -> ready
+            if (state == OrchestrationServiceState.READY && curState == OrchestrationServiceState.NOTREADY)
+            {
+                logger.info("The service is started");
+                curState = state;
+                buildOrUpdateRedisPartitionInfo();
+            }
+            else if(state == OrchestrationServiceState.NOTREADY && curState == OrchestrationServiceState.READY)
+            {
+                logger.info("The service is stopped");
+                curState = state;
+                clearRedisPartitionInfo();
+            }
+            else if(state == OrchestrationServiceState.DEPCHANGE)
+            {
+                logger.info("The dependence is changed");
+                buildOrUpdateRedisPartitionInfo();
+            }
+        }
+    }
+    
+    class CacheConfigCallBack implements ConfigCallBack
+    {
+
+        @Override
+        public void handleServiceConfigChange(ServiceConfigState state)
+        {
+            logger.info("Service config state is: " + state);
+            if (state == ServiceConfigState.CREATED || state == ServiceConfigState.CHANGED)
+            {
+                JSONObject serviceConfigPropertiesObj = configClient.getServiceConfigProperties();
+                if (ZNodeDataUtil.validateServiceConfigProperties(serviceData, serviceConfigPropertiesObj))
+                {
+                    updateServiceConfigProperties(serviceConfigPropertiesObj);
+                }
+                else
+                {
+                    logger.error("Un valid service config properties: " + serviceConfigPropertiesObj);
+                }
+            }
+            else if (state == ServiceConfigState.DELETED || state == ServiceConfigState.CLOSE)
+            {
+                if (isConfiged)
+                {
+                    stopWork();
+                }
+                isConfiged = false;
+            }
+            else
+            {
+                logger.error("Unknow ServiceConfigState: " + state);
+            }
         }
     }
 }
