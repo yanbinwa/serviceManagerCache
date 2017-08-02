@@ -273,7 +273,6 @@ public class CacheServiceImpl implements CacheService
         logger.info("Start work cache service ...");
         init();
         client.start();
-        isRunning = true;
     }
 
     @Override
@@ -282,7 +281,6 @@ public class CacheServiceImpl implements CacheService
         logger.info("Stop work cache service ...");
         client.stop();
         reset();
-        isRunning = false;
     }
     
     private void init()
